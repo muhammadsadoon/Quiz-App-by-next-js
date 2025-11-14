@@ -1,0 +1,56 @@
+"use client";
+import { questions } from '@/utils/questions/question';
+import { handleDispatchQuestionState } from '@/utils/redux/store/actions/question-action/question-action';
+import { useEffect, useState } from 'react'
+import { useDispatch, useSelector } from 'react-redux';
+import type { AppDispatch } from '@/utils/redux/store';
+import { Button, Card, Grid, Group, Text } from '@mantine/core';
+import { IconRefresh } from '@tabler/icons-react';
+import Link from 'next/link';
+
+const StartQuiz = () => {
+    const [questionArr, setQuestionArr] = useState<any>([]);
+    const { quizReducer }: any = useSelector((state: any) => state?.rootReducers);
+    const dispatch = useDispatch<AppDispatch>()
+
+
+    const refreshQuestion = () => {
+        setQuestionArr(quizReducer?.quizList[0]);
+        console.log(quizReducer);
+        console.log(questionArr);
+    }
+
+
+    useEffect(() => {
+        dispatch(handleDispatchQuestionState(questions));
+        refreshQuestion();
+    }, []);
+    return (
+        <div>
+            <div className='p-4'>
+                <Group className='my-8'>
+                    <h2 className='text-2xl'>Avilable Quiz Exam</h2>
+                    <Button onClick={refreshQuestion} variant='gradient'><IconRefresh /></Button>
+                </Group>
+                <Grid>
+                    {
+                        questionArr?.list?.map((item: any, index: number) => {
+                            return (
+                                <Grid.Col key={index} span={4}>
+                                    <Card padding="sm" className='p-10' component={Link} href={`/start-quiz/${(item?.lebal).split(" ").join("-")}`}>
+                                        <Card.Section className='p-3'>
+                                            {item?.lebal}
+                                        </Card.Section>
+                                    </Card>
+                                </Grid.Col>
+                            )
+                        })
+                        // questionArr?.list?.map((item: any, index: any) => <h1 key={index}>{item?.lebal}</h1>)
+                    }
+                </Grid>
+            </div>
+        </div>
+    )
+}
+
+export default StartQuiz
