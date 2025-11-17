@@ -11,15 +11,13 @@ const quizSlice = createSlice({
     name: "quiz",
     initialState,
     reducers: {
-        AUTO_UPDATE_QUIZ: (state, action) => {
+        AUTO_UPDATE_QUIZ(state, action) {
             if (!state.quizList.includes(action.payload)) {
-                const clonePreviousArray = state.quizList;
-                clonePreviousArray.push(action.payload);
-                state.quizList = clonePreviousArray;
+                state.quizList.push(action.payload);
             }
         }
     }
-})
+});
 
 export const {
     AUTO_UPDATE_QUIZ

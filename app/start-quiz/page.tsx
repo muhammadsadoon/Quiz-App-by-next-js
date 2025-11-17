@@ -7,8 +7,10 @@ import type { AppDispatch } from '@/utils/redux/store';
 import { Button, Card, Grid, Group, Text } from '@mantine/core';
 import { IconRefresh } from '@tabler/icons-react';
 import Link from 'next/link';
+import { useMediaQuery } from '@mantine/hooks';
 
 const StartQuiz = () => {
+    const querySelector = useMediaQuery('(max-width: 450px)')
     const [questionArr, setQuestionArr] = useState<any>([]);
     const { quizReducer }: any = useSelector((state: any) => state?.rootReducers);
     const dispatch = useDispatch<AppDispatch>()
@@ -16,8 +18,6 @@ const StartQuiz = () => {
 
     const refreshQuestion = () => {
         setQuestionArr(quizReducer?.quizList[0]);
-        console.log(quizReducer);
-        console.log(questionArr);
     }
 
 
@@ -32,11 +32,11 @@ const StartQuiz = () => {
                     <h2 className='text-2xl'>Avilable Quiz Exam</h2>
                     <Button onClick={refreshQuestion} variant='gradient'><IconRefresh /></Button>
                 </Group>
-                <Grid>
+                <Grid >
                     {
                         questionArr?.list?.map((item: any, index: number) => {
                             return (
-                                <Grid.Col key={index} span={4}>
+                                <Grid.Col key={index} span={querySelector ? 12 : 4}>
                                     <Card padding="sm" className='p-10' component={Link} href={`/start-quiz/${(item?.lebal).split(" ").join("-")}`}>
                                         <Card.Section className='p-3'>
                                             {item?.lebal}
@@ -45,7 +45,6 @@ const StartQuiz = () => {
                                 </Grid.Col>
                             )
                         })
-                        // questionArr?.list?.map((item: any, index: any) => <h1 key={index}>{item?.lebal}</h1>)
                     }
                 </Grid>
             </div>
