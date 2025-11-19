@@ -3,19 +3,22 @@ import { Table } from '@mantine/core';
 import { useParams, useRouter } from 'next/navigation'
 import React, { useEffect, useRef, useState } from 'react'
 import { useSelector } from 'react-redux';
+import { shuffleArray } from '@/utils/questions/question';
 
 const QuizPage = () => {
-    const [slected, setSlected] = useState<string>("");
+    const [selected, setSelected] = useState<string>("");
     const [index, setIndex] = useState<number>(0);
     const [questions, setQuestions] = useState<any[]>([]);
     const [isStart, setIsStart] = useState<boolean>(false);
-    // const [timer, setTimer] = useState<number>(0);
-    // const [isOver, setIsOver] = useState<boolean>(false);
-    const [remainingQuetions, setRemainingQuetions] = useState<string>("");
-    const [trueAnswers, setTrueAnswers] = useState<string[]>([]);
-    const [falseAnswers, setFalseAnswers] = useState<string[]>([]);
-    const [questionState, setQuestionState] = useState<string[]>([]);
-    const [defualtQuestion, setQefualtQuestion] = useState<any>([]);
+    const [timer, setTimer] = useState<number>(0);
+    const [timerDisplay, setTimerDisplay] = useState<string>("00:00:00");
+    const [isOver, setIsOver] = useState<boolean>(false);
+    const [remainingQuestions, setRemainingQuestions] = useState<string>("");
+    const [trueAnswers, setTrueAnswers] = useState<number[]>([]);
+    const [falseAnswers, setFalseAnswers] = useState<number[]>([]);
+    const [defaultQuestion, setDefaultQuestion] = useState<any>([]);
+    const [isQuestionEnded, setIsQuestionEnded] = useState<boolean>(false);
+    const [shuffledOptions, setShuffledOptions] = useState<string[]>([]);
 
     const navigate = useRouter();
     const questionData = useSelector((data: any) => data?.rootReducers?.quizReducer?.quizList)
@@ -24,21 +27,37 @@ const QuizPage = () => {
     pageSection = decodeURI(pageSection).split("-").join(" ");
 
     const handleStartTest = () => {
-        const filterData = questionData?.filter((item: any) => item?.lebal?.includes(pageSection));
+        const list = questionData?.[0]?.list ?? [];
+        const section = list.find((s: any) => s?.lebal?.includes(pageSection));
         setIsStart(true);
-        // setTimer(new Date().getTime() + (1000 * 60));
-        setQuestions(questionData[0]?.list);
-        setQefualtQuestion(filterData);
+        // set timer for 5 minutes (adjust as needed)
+        const durationMs = 5 * 60 * 1000;
+        const deadline = Date.now() + durationMs;
+        setTimer(deadline);
+        setTimerDisplay(() => {
+            const hrs = Math.floor(durationMs / (1000 * 60 * 60));
+            const mins = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60));
+            const secs = Math.floor((durationMs % (1000 * 60)) / 1000);
+            return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+        });
+        // reset/initialize question state
+        setQuestions(list);
+        setDefaultQuestion(section ?? null);
+        setIsOver(false);
+        setIsQuestionEnded(false);
+        setIndex(0);
+        setTrueAnswers([]);
+        setFalseAnswers([]);
         // setIsOver(false);
     }
 
     const ResultPage = React.memo(() => {
-        console.log(defualtQuestion)
+        const sectionQuestions = defaultQuestion?.data ?? [];
         return (
             <div className='flex min-h-[50vh] items-center justify-center flex-col'>
                 <div>
                     <h1>Questions Ended!</h1>
-                    <Table.ScrollContainer minWidth={330} maxHeight={300}>
+                    <Table.ScrollContainer minWidth={320} maxHeight={300}>
                         <Table>
                             <Table.Thead>
                                 <Table.Tr>
@@ -50,12 +69,12 @@ const QuizPage = () => {
                             </Table.Thead>
                             <Table.Tbody>
                                 {
-                                    questionState?.map((element: any) => (
-                                        <Table.Tr key={element.id}>
-                                            <Table.Td>{element.questionId}</Table.Td>
+                                    sectionQuestions?.map((element: any, i: number) => (
+                                        <Table.Tr key={i}>
+                                            <Table.Td>{element?.questionId ?? i + 1}</Table.Td>
                                             <Table.Td>{element.question}</Table.Td>
-                                            <Table.Td>{trueAnswers.includes(element.answer) ? "✅" : "-"}</Table.Td>
-                                            <Table.Td>{falseAnswers.includes(element.answer) ? "✅" : "-"}</Table.Td>
+                                            <Table.Td>{trueAnswers.includes(element.questionId) ? "✅" : "-"}</Table.Td>
+                                            <Table.Td>{falseAnswers.includes(element.questionId) ? "✅" : "-"}</Table.Td>
                                         </Table.Tr>
                                     ))
                                 }
@@ -63,88 +82,127 @@ const QuizPage = () => {
                         </Table>
                     </Table.ScrollContainer>
                 </div>
-                <button className='p-2 font-bold' onClick={() => navigate.push("/start-quiz")}>More Quiz</button>
+                <button className='p-2 font-bold bg-green-800 my-3 rounded-md cursor-pointer active:translate-y-0.5' onClick={() => navigate.push("/start-quiz")}>More Quiz</button>
             </div>
         );
     });
 
-    /** Checking Options in during submitting question...! */
-    const checkQuestions = (option: string | undefined, answer: string, question: string) => {
-        setIndex(prev => prev + 1);
-        setSlected("");
-        setQuestionState(val => [...val, question]);
-        if (option === answer) setTrueAnswers(ans => [...ans, answer]);
-        else setFalseAnswers(ans => [...ans, answer]);
-    }
-    const HandlerWhileQuestion = () => {
-        const fitlurData = questions.find((item: any) => {
-            return item.lebal == pageSection;
+    /** Checking Options during submitting question */
+    const checkQuestions = (option: string | undefined, answer: string, questionId: number, questionText?: string) => {
+        // record the selected answer
+        if (option === answer) setTrueAnswers(ans => [...ans, questionId]);
+        else setFalseAnswers(ans => [...ans, questionId]);
+
+
+        // Determine total and advance index atomically; mark end when we reach last question
+        const filtered = questions.find((item: any) => item?.lebal == pageSection);
+        const total = filtered?.data?.length ?? questions.length ?? 0;
+        setIndex(prev => {
+            const next = prev + 1;
+            if (next >= total && total > 0) setIsQuestionEnded(true);
+            return next;
         });
-        console.log(fitlurData)
-        setRemainingQuetions(`${index + 1} / ${fitlurData?.data?.length}`);
-        if (fitlurData?.length != index + 1) {
-            return fitlurData.data?.map((item: any, i: number) => {
-                if (i == index) {
-                    return (
-                        <div className='h-full w-full' key={i}>
-                            <h1 className='text-2xl my-6 text-center text-white'>{item?.question}</h1>
-                            <div className='flex flex-col gap-2 w-full'>
-                                <div onClick={() => setSlected(item.options[0])} className={`cursor-pointer border p-2 font-semibold ${slected == item.options[0] ? "border-green-700 text-white" : "border-b-gray-300"}`}>
-                                    {item.options[0]}
-                                </div>
-                                <div onClick={() => setSlected(item.options[1])} className={`cursor-pointer border p-2 font-semibold ${slected == item.options[1] ? "border-green-700 text-white" : "border-b-gray-300"}`}>
-                                    {item.options[1]}
-                                </div>
-                                <div onClick={() => setSlected(item.options[2])} className={`cursor-pointer border p-2 font-semibold ${slected == item.options[2] ? "border-green-700 text-white" : "border-b-gray-300"}`}>
-                                    {item.options[2]}
-                                </div>
-                                <div onClick={() => setSlected(item.options[3])} className={`cursor-pointer border p-2 font-semibold ${slected == item.options[3] ? "border-green-700 text-white" : "border-b-gray-300"}`}>
-                                    {item.options[3]}
-                                </div>
-                                <div className='flex items-center justify-end'>
-                                    <button onClick={() => checkQuestions(slected, item?.answer, item?.question)} className={`disabled:opacity-60 p-2 bg-green-500 text-white active:translate-y-0.5 rounded-md text-2xl font-bold ${slected == "" ? "" : "cursor-pointer"}`} disabled={slected == ""}>Next</button>
-                                </div>
-                            </div>
-                        </div>
-                    )
-                }
-            }
-            )
-        }
-        return <>testing</>
 
+        // reset selected for next question
+        setSelected("");
     }
 
-    /**Timer Handler useEffect function...! */
-    // useEffect(() => {
-    //     setTimeout(() => {
-    //         const timerEl = document.getElementById("timer") as HTMLHeadingElement;
-    //         let currentTimer = new Date().getTime();
-    //         const remaining = timer - currentTimer;
-    //         // If timer not set yet, show 00:00:00
-    //         if (!timer || timer <= 0) {
-    //             if (timerEl) timerEl.innerHTML = "00:00:00";
-    //             return;
-    //         }
+    const HandlerWhileQuestion = () => {
+        const filteredData = questions.find((item: any) => item?.lebal == pageSection);
+        const total = filteredData?.data?.length ?? 0;
 
-    //         if (remaining <= 0) {
-    //             if (timerEl) timerEl.innerHTML = "00:00:00";
-    //             if (!isOver) setIsOver(true);
-    //             return;
-    //         }
+        if (!filteredData || !filteredData.data || filteredData.data.length === 0) {
+            return <div className='text-white'>No questions available for this section.</div>;
+        }
 
-    //         const hrs = Math.floor(remaining / (1000 * 60 * 60));
-    //         const mins = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
-    //         const secs = Math.floor((remaining % (1000 * 60)) / 1000);
+        const current = filteredData.data[index];
+        if (!current) return <div className='text-white'>testing</div>;
 
-    //         const hh = String(hrs).padStart(2, "0");
-    //         const mm = String(mins).padStart(2, "0");
-    //         const ss = String(secs).padStart(2, "0");
-    //         if (timerEl) timerEl.innerHTML = `${hh}:${mm}:${ss}`;
-    //         // if (!isOver) setIsOver(true);
-    //         if (currentTimer !== timer) setIsOver(isOver ? false : true);
-    //     }, 1000);
-    // }, [isOver]);
+        return (
+            <div className='h-full w-full' key={index}>
+                <h1 className='text-2xl my-6 text-center text-white'>{current?.question}</h1>
+                <div className='flex flex-col gap-2 w-full'>
+                    <div onClick={() => setSelected(shuffledOptions[0])} className={`cursor-pointer border p-2 font-semibold ${selected == shuffledOptions[0] ? "border-green-700 text-white" : "border-gray-300"}`}>
+                        {shuffledOptions[0]}
+                    </div>
+                    <div onClick={() => setSelected(shuffledOptions[1])} className={`cursor-pointer border p-2 font-semibold ${selected == shuffledOptions[1] ? "border-green-700 text-white" : "border-gray-300"}`}>
+                        {shuffledOptions[1]}
+                    </div>
+                    <div onClick={() => setSelected(shuffledOptions[2])} className={`cursor-pointer border p-2 font-semibold ${selected == shuffledOptions[2] ? "border-green-700 text-white" : "border-gray-300"}`}>
+                        {shuffledOptions[2]}
+                    </div>
+                    <div onClick={() => setSelected(shuffledOptions[3])} className={`cursor-pointer border p-2 font-semibold ${selected == shuffledOptions[3] ? "border-green-700 text-white" : "border-gray-300"}`}>
+                        {shuffledOptions[3]}
+                    </div>
+                    <div className='flex items-center justify-end'>
+                        <button onClick={() => checkQuestions(selected, current?.answer, current?.questionId, current?.question)} className={`disabled:opacity-60 p-2 bg-green-500 text-white active:translate-y-0.5 rounded-md text-2xl font-bold ${selected == "" ? "" : "cursor-pointer"}`} disabled={selected == ""}>Next</button>
+                    </div>
+                </div>
+            </div>
+        )
+    }
+
+    /** Timer: update display every second and end quiz when time runs out or when quiz finishes */
+    useEffect(() => {
+        // If not started or no timer set, show 00:00:00 and do nothing
+        if (!isStart || !timer) {
+            setTimerDisplay("00:00:00");
+            return;
+        }
+
+        // If quiz ended (manually by completing questions) or already over, freeze the display
+        if (isQuestionEnded || isOver) {
+            const now = Date.now();
+            const remaining = Math.max(timer - now, 0);
+            if (remaining <= 0) {
+                setTimerDisplay("00:00:00");
+                setIsOver(true);
+            } else {
+                const hrs = Math.floor(remaining / (1000 * 60 * 60));
+                const mins = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
+                const secs = Math.floor((remaining % (1000 * 60)) / 1000);
+                setTimerDisplay(`${String(hrs).padStart(2, "0")}:${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`);
+            }
+            return;
+        }
+
+        // Otherwise start interval to update timer every second
+        const id = setInterval(() => {
+            const now = Date.now();
+            const remaining = timer - now;
+
+            if (remaining <= 0) {
+                setTimerDisplay("00:00:00");
+                setIsOver(true);
+                setIsQuestionEnded(true);
+                clearInterval(id);
+                return;
+            }
+
+            const hrs = Math.floor(remaining / (1000 * 60 * 60));
+            const mins = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
+            const secs = Math.floor((remaining % (1000 * 60)) / 1000);
+            setTimerDisplay(`${String(hrs).padStart(2, "0")}:${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`);
+        }, 1000);
+
+        return () => clearInterval(id);
+    }, [timer, isStart, isQuestionEnded, isOver]);
+
+    /** Update remaining questions display when index or questions change */
+    useEffect(() => {
+        const filteredData = questions.find((item: any) => item?.lebal == pageSection);
+        const total = filteredData?.data?.length ?? 0;
+        setRemainingQuestions(`${Math.min(index + 1, Math.max(total, 1))} / ${total}`);
+    }, [index, questions, pageSection]);
+
+    /** Shuffle options when the current question changes */
+    useEffect(() => {
+        const filteredData = questions.find((item: any) => item?.lebal == pageSection);
+        const current = filteredData?.data?.[index];
+        if (current?.options) {
+            setShuffledOptions(shuffleArray(current.options));
+        }
+    }, [index, questions, pageSection]);
 
     useEffect(() => {
 
@@ -164,15 +222,18 @@ const QuizPage = () => {
 
             {isStart && <section className='flex flex-col h-[70vh] items-center justify-center w-full'>
                 <div className='flex text-white w-full h-1/5 items-center p-2 text-3xl justify-between'>
-                    <h2 >{remainingQuetions}</h2>
-                    <h1 id='timer'>00:00:00</h1>
+                    <h2 >{remainingQuestions}</h2>
+                    <h1 id='timer'>{timerDisplay}</h1>
                 </div>
                 {
-                    (defualtQuestion?.data?.length != index) ? <HandlerWhileQuestion /> : <ResultPage />
+                    !isQuestionEnded && <HandlerWhileQuestion />
+                }
+                {
+                    isQuestionEnded && <ResultPage />
                 }
             </section>}
         </div >
     )
 }
 
-export default QuizPage
+export default QuizPage;

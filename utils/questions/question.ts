@@ -6,6 +6,16 @@ export default interface QuestionTypes {
     hints?: string[]
 }[]
 
+/** Shuffle array using Fisher-Yates algorithm */
+export const shuffleArray = <T,>(arr: T[]): T[] => {
+    const shuffled = [...arr];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled;
+};
+
 const htmlQuestions: QuestionTypes[] = [
     {
         questionId: 1,
@@ -93,14 +103,14 @@ const htmlQuestions: QuestionTypes[] = [
         questionId: 12,
         question: "Which HTML attribute specifies an alternate text for an image?",
         answer: "alt",
-        options: ["alt", "title", "text", "description"],
+        options: ["title", "text", "alt", "description"],
         hints: ["Important for accessibility", "Short form of 'alternative'"]
     },
     {
         questionId: 13,
         question: "Which tag is used to create a dropdown list?",
         answer: "<select>",
-        options: ["<select>", "<dropdown>", "<option>", "<list>"],
+        options: ["<dropdown>", "<select>", "<option>", "<list>"],
         hints: ["Works with <option>", "Used in forms"]
     },
     {
