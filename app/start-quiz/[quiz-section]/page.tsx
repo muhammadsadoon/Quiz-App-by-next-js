@@ -112,7 +112,7 @@ const QuizPage = () => {
         const total = filteredData?.data?.length ?? 0;
 
         if (!filteredData || !filteredData.data || filteredData.data.length === 0) {
-            return <div className='text-white'>No questions available for this section.</div>;
+            return <div>No questions available for this section.</div>;
         }
 
         const current = filteredData.data[index];
@@ -205,11 +205,11 @@ const QuizPage = () => {
     }, [index, questions, pageSection]);
 
     useEffect(() => {
-
+        document.title = `Quiz | ${pageSection}`;
     }, [])
     return (
         <div className='p-6'>
-            <h1 className='text-white font-bold text-3xl'>{pageSection}</h1>
+            <h1 className=' font-bold text-3xl'>{pageSection}</h1>
             {
                 !isStart && (
                     <>

@@ -24,6 +24,7 @@ const StartQuiz = () => {
     useEffect(() => {
         dispatch(handleDispatchQuestionState(questions));
         refreshQuestion();
+        document.title = "Quiz App Select exam options"
     }, []);
     return (
         <div>
@@ -37,7 +38,7 @@ const StartQuiz = () => {
                         questionArr?.list?.map((item: any, index: number) => {
                             return (
                                 <Grid.Col key={index} span={querySelector ? 12 : 4}>
-                                    <Card padding="sm" className='p-10' component={Link} href={`/start-quiz/${(item?.lebal).split(" ").join("-")}`}>
+                                    <Card padding="sm" className='p-10 m-2' component={Link} href={`/start-quiz/${(item?.lebal).split(" ").join("-")}`}>
                                         <Card.Section className='p-3'>
                                             {item?.lebal}
                                         </Card.Section>
